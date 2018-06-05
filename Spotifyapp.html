@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+ <title>Spotify Web Playback SDK</title>
+</head>
+<body>
+ <h1>Spotify Web Playback SDK </h1>
+ <h2>Open your console log: <code>View > Developer > JavaScript Console</code></h2>
+ <form id="artist-form">
+  <label for="artist-input">Search for an artist</label>
+  <input type="text" id="artist-input"><br>
+
+  <!-- This button will trigger our AJAX call -->
+  <input id="find-artist" type="submit" value="artist search">
+</form>
+
+ <button id="play_playa">Play</button>
+ <script src="https://code.jquery.com/jquery-3.3.1.js" integrity="sha256-2Kok7MbOyxpgUVvAk/HJ2jigOSYS2auK4Pfzbm7uH60=" crossorigin="anonymous"></script>
+ <script src="https://sdk.scdn.co/spotify-player.js"></script>
+ <script>
+     const clientID='aec2ecae4514485db63205cfd62415cc';
+     let player,token,deviceID;
+     var accountUrl='https://accounts.spotify.com/authorize?client_id='+clientID+'&redirect_uri=http:%2F%2Fwww.touchcatdigital.ca&scope=user-read-private%20user-read-email%20user-read-playback-state%20user-modify-playback-state%20streaming%20user-read-birthdate%20user-read-currently-playing&response_type=token&state=123';
+     window.onSpotifyWebPlaybackSDKReady = () => {
+     window.addEventListener("message", receiveMessage, false);
+
+    // Updates the player SDK with the trackID found through searching the artist //
+     updatePlayer=function(track_id){
+      var req=$.ajax({
+                 url:"https://api.spotify.com/v1/me/player/play?device_id="+deviceID,
+                 method:'PUT',
+                 dataType:'json',
+                 data:JSON.stringify({
+                     "uris":["spotify:track:" + track_id]
+                 }),
+                 headers:{
+                     "Authorization":'Bearer ' + token,
+                     'Content-Type': 'application/json'
+                 }
+             });
+             req.done(function(msg){
+                player.setVolume(0.9);
+                 console.log('PLAYING');
+                 $('#play_playa').on('click',function(){
+                  player.resume();
+                 });
+             });
+             req.fail(function(jqXHR, textStatus){
+               switch(jqXHR.status){
+                 case 403:
+                   console.log('NEED PREMIUM ACCOUNT');
+                   break;
+                 case 404:
+                   console.log('NO DEVICE');
+                   break;
+                 default:
+                   break;
+               }
+             });  
+     };
+     // Andrew's client, opens his website //
+     var authWindow = window.open(accountUrl, '_blank');
+       if (authWindow) {
+         authWindow.focus();
+       }
+
+       function receiveMessage(event){
+         console.log(event);
+         var msg=event.data;
+         if(typeof msg==='string'){
+           var parseArray=msg.split('&');
+           token=parseArray[0].split('=')[1];
+           authWindow.close();
+             player = new Spotify.Player({
+               name: 'Max Tunage',
+               getOAuthToken: cb => { cb(token); }
+             });
+             
+
+             // Error handling
+             player.addListener('initialization_error', ({ message }) => { console.error(message); });
+             player.addListener('authentication_error', ({ message }) => { console.error(message); });
+             player.addListener('account_error', ({ message }) => { console.error(message); });
+             player.addListener('playback_error', ({ message }) => { console.error(message); });
+
+             // Playback status updates
+             player.addListener('player_state_changed', state => { console.log(state);});
+ 
+            
+
+
+
+             // Ready
+             player.addListener('ready', ({ device_id }) => {
+               deviceID=device_id;
+               console.log('Ready with Device ID', device_id);
+               
+              });
+              // Searches the artist, grabs the first trackID, and updates the player //
+             $("#find-artist").on("click", function(artistsearch) {
+            var artist = $("#artist-input").val();
+            var queryURL = "https://api.spotify.com/v1/search?q=" + artist + "&type=track";
+            artistsearch.preventDefault();
+
+            var artistSearch=$.ajax({
+             url: queryURL,
+             method: 'GET',
+             dataType:'json',
+             headers:{
+                     "Authorization":'Bearer ' + token,
+                     'Content-Type': 'application/json'
+                 }   
+}).then(function(response) {
+  $("#artist-view").text(JSON.stringify(response));
+  
+  console.log(response.tracks.items[0].id)
+  var trackID = response.tracks.items[0].id;
+  updatePlayer(trackID);
+});
+// -----------------------------------------------------------------------
+
+});
+
+             // Not Ready
+             player.addListener('not_ready', ({ device_id }) => {
+               console.log('Device ID has gone offline', device_id);
+             });
+
+             // Connect to the player!
+             player.connect();
+         }
+       };
+     };
+     
+ </script>
+</body>
+</html>
